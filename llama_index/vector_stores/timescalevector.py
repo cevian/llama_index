@@ -11,13 +11,20 @@ from llama_index.vector_stores.types import (
 )
 from llama_index.vector_stores.utils import node_to_metadata_dict, metadata_dict_to_node
 from llama_index.constants import DEFAULT_EMBEDDING_DIM
+from datetime import datetime, timedelta
+import enum
+import uuid
 
 class TimescaleVectorStore(VectorStore):
     stores_text = True
     flat_metadata = False
 
     def __init__(
-        self, service_url: str, table_name: str, num_dimensions: int = DEFAULT_EMBEDDING_DIM
+        self,
+        service_url: str,
+        table_name: str,
+        num_dimensions: int = DEFAULT_EMBEDDING_DIM,
+        time_partition_interval: Optional[timedelta] = None,
     ) -> None:
         try:
             from timescale_vector import client  # noqa: F401
@@ -29,6 +36,8 @@ class TimescaleVectorStore(VectorStore):
         self.service_url = service_url
         self.table_name: str = table_name.lower()
         self.num_dimensions = num_dimensions
+        self._time_partition_interval = time_partition_interval
+        self._uuid_time_filter = None
 
         self._create_clients()
         self._create_tables()
@@ -54,8 +63,8 @@ class TimescaleVectorStore(VectorStore):
     def _create_clients(self):
         from timescale_vector import client
 
-        self._sync_client = client.Sync(self.service_url, self.table_name, self.num_dimensions, id_type="TEXT")
-        self._async_client = client.Async(self.service_url, self.table_name, self.num_dimensions, id_type="TEXT")
+        self._sync_client = client.Sync(self.service_url, self.table_name, self.num_dimensions, id_type="UUID", time_partition_interval=self._time_partition_interval)
+        self._async_client = client.Async(self.service_url, self.table_name, self.num_dimensions, id_type="UUID", time_partition_interval=self._time_partition_interval)
 
     def _create_tables(self) -> None:
         self._sync_client.create_tables()
@@ -67,7 +76,6 @@ class TimescaleVectorStore(VectorStore):
                 flat_metadata=self.flat_metadata,
             );
         return [node.id, metadata, node.node.get_content(metadata_mode=MetadataMode.NONE), node.embedding]
-
 
     def add(self, embedding_results: List[NodeWithEmbedding]) -> List[str]:
         rows_to_insert = [self._node_to_row(node) for node in embedding_results]
@@ -120,6 +128,41 @@ class TimescaleVectorStore(VectorStore):
             ids=ids,
         )
 
+    def date_to_range_filter(self, **kwargs) -> Any:
+        start_date = kwargs.get("start_date")
+        end_date = kwargs.get("end_date")
+        time_delta = kwargs.get("time_delta")
+
+        try:
+            from timescale_vector import client
+        except ImportError:
+            raise ValueError(
+                "Could not import timescale_vector python package. "
+                "Please install it with `pip install timescale-vector`."
+            )
+
+        if not start_date and not end_date:
+            return
+
+        if start_date and not isinstance(start_date, datetime):
+            raise ValueError("start_date should be a datetime object.")
+
+        if end_date and not isinstance(end_date, datetime):
+            raise ValueError("end_date should be a datetime object.")
+
+        if time_delta and not isinstance(time_delta, timedelta):
+            raise ValueError("time_delta should be a timedelta object.")
+
+        if start_date and time_delta and not end_date:
+            end_date = start_date + time_delta
+
+        if end_date and time_delta and not start_date:
+            start_date = end_date - time_delta
+
+        include_start_time = True
+        include_end_time = True
+        return client.UUIDTimeRange(start_date, end_date, include_start_time, include_end_time)
+
     def _query_with_score(
         self,
         embedding: Optional[List[float]],
@@ -127,7 +170,7 @@ class TimescaleVectorStore(VectorStore):
         metadata_filters: Optional[MetadataFilters] = None,
     ) -> VectorStoreQueryResult:
         filter = self._filter_to_dict(metadata_filters)
-        res = self._sync_client.search(embedding, limit, filter)
+        res = self._sync_client.search(embedding, limit, filter, uuid_time_filter=self._uuid_time_filter)
         return self._db_rows_to_query_result(res)
 
     async def _aquery_with_score(
@@ -137,21 +180,88 @@ class TimescaleVectorStore(VectorStore):
         metadata_filters: Optional[MetadataFilters] = None,
     ) -> VectorStoreQueryResult:
         filter = self._filter_to_dict(metadata_filters)
-        res = await self._async_client.search(embedding, limit, filter)
+        res = await self._async_client.search(embedding, limit, filter, uuid_time_filter=self._uuid_time_filter)
         return self._db_rows_to_query_result(res)
 
     def query(self, query: VectorStoreQuery, **kwargs: Any) -> VectorStoreQueryResult:
         return self._query_with_score(
-            query.query_embedding, query.similarity_top_k, query.filters
+            query.query_embedding, query.similarity_top_k, query.filters, **kwargs
         )
 
     async def aquery(
         self, query: VectorStoreQuery, **kwargs: Any
     ) -> VectorStoreQueryResult:
         return await self._aquery_with_score(
-            query.query_embedding, query.similarity_top_k, query.filters
+            query.query_embedding, query.similarity_top_k, query.filters, **kwargs,
         )
 
     def delete(self, ref_doc_id: str, **delete_kwargs: Any) -> None:
         filter: Dict[str, str] = {"doc_id":ref_doc_id}
         self._sync_client.delete_by_metadata(filter)
+
+    class IndexType(enum.Enum):
+        """Enumerator for the supported Index types"""
+        TIMESCALE_VECTOR = 1
+        PGVECTOR_IVFFLAT = 2
+        PGVECTOR_HNSW = 3
+
+    # ---8<---configure Index defaults ---
+    DEFAULT_INDEX_TYPE = IndexType.PGVECTOR_IVFFLAT
+    DEFAULT_TSV_USE_PQ = False
+    DEFAULT_TSV_NUM_NEIGHBORS = 100
+    DEFAULT_TSV_SEARCH_LIST_SIZE = 100
+    DEFAULT_TSV_MAX_ALPHA = 1.2
+    DEFAULT_TSV_VECTOR_LENGTH = 128
+    DEFAULT_PGV_IVFLAT_NUM_RECORDS = 100
+    DEFAULT_PGV_IVFLAT_NUM_LISTS = 10
+    DEFAULT_PGV_HNSW_M = 10
+    DEFAULT_PGV_HNSW_EF = 20
+    # --- configure Index defaults --->8---
+
+    class IndexOptions(str, enum.Enum):
+        """Enumerator for the Index creation options"""
+        PGV_IVFLAT_NUM_RECORDS = "num_rows"
+        PGV_IVFLAT_NUM_LISTS = "num_lists"
+        PGV_HNSW_M = "m"
+        PGV_HNSW_EF = "ef"
+        TSV_USE_PQ = "use_pq"
+        TSV_NUM_NEIGHBORS = "num_neighbors"
+        TSV_SEARCH_LIST_SIZE = "search_list_size"
+        TSV_MAX_ALPHA = "max_alpha"
+        TSV_VECTOR_LENGTH = "pq_vector_length"
+
+    def create_index(
+            self,
+            index_name: Optional[str] = None,
+            index_type: IndexType = DEFAULT_INDEX_TYPE,
+            **kwargs: Any):
+        try:
+            from timescale_vector import client
+        except ImportError:
+            raise ValueError(
+                "Could not import timescale_vector python package. "
+                "Please install it with `pip install timescale-vector`."
+            )
+
+        if (index_type == self.IndexType.PGVECTOR_IVFFLAT):
+            pgv_num_rows = kwargs.get(self.IndexOptions.PGV_IVFLAT_NUM_RECORDS, self.DEFAULT_PGV_IVFLAT_NUM_RECORDS)
+            pgv_num_lists = kwargs.get(self.IndexOptions.PGV_IVFLAT_NUM_LISTS, self.DEFAULT_PGV_IVFLAT_NUM_LISTS)
+            self._sync_client.create_embedding_index(client.IvfflatIndex(pgv_num_rows, pgv_num_lists))
+
+        if (index_type == self.IndexType.PGVECTOR_HNSW):
+            pgv_m = kwargs.get(self.IndexOptions.PGV_HNSW_M, self.DEFAULT_PGV_HNSW_M)
+            pgv_ef = kwargs.get(self.IndexOptions.PGV_HNSW_EF, self.DEFAULT_PGV_HNSW_EF)
+            self._sync_client.create_embedding_index(client.HNSWIndex(pgv_m, pgv_ef))
+
+        if (index_type == self.IndexType.TIMESCALE_VECTOR):
+            use_pq = kwargs.get(self.IndexOptions.TSV_USE_PQ, self.DEFAULT_TSV_USE_PQ)
+            num_neighbors = kwargs.get(self.IndexOptions.TSV_NUM_NEIGHBORS, self.DEFAULT_TSV_NUM_NEIGHBORS)
+            search_list_size = kwargs.get(self.IndexOptions.TSV_SEARCH_LIST_SIZE, self.DEFAULT_TSV_SEARCH_LIST_SIZE)
+            max_alpha = kwargs.get(self.IndexOptions.TSV_MAX_ALPHA, self.DEFAULT_TSV_MAX_ALPHA)
+            vector_length = kwargs.get(self.IndexOptions.TSV_VECTOR_LENGTH, self.DEFAULT_TSV_VECTOR_LENGTH)
+            self._sync_client.create_embedding_index(client.TimescaleVectorIndex(use_pq, num_neighbors, search_list_size, max_alpha, vector_length))
+
+    # TODO
+    def set_query_args(self, **kwargs):
+        #self._uuid_time_filter=self.date_to_range_filter(**kwargs)
+        return
