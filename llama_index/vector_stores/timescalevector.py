@@ -75,11 +75,11 @@ class TimescaleVectorStore(VectorStore):
                 remove_text=True,
                 flat_metadata=self.flat_metadata,
             );
-        return [node.id, metadata, node.node.get_content(metadata_mode=MetadataMode.NONE), node.embedding]
+        return [str(uuid.uuid1()), metadata, node.node.get_content(metadata_mode=MetadataMode.NONE), node.embedding]
 
     def add(self, embedding_results: List[NodeWithEmbedding]) -> List[str]:
         rows_to_insert = [self._node_to_row(node) for node in embedding_results]
-        ids = [result.id for result in embedding_results]
+        ids = [result[0] for result in rows_to_insert]
         self._sync_client.upsert(rows_to_insert)
         return ids
 
@@ -263,5 +263,4 @@ class TimescaleVectorStore(VectorStore):
 
     # TODO
     def set_query_args(self, **kwargs):
-        #self._uuid_time_filter=self.date_to_range_filter(**kwargs)
-        return
+        self._uuid_time_filter=self.date_to_range_filter(**kwargs)
