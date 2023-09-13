@@ -15,7 +15,8 @@ from llama_index.vector_stores.types import (
 
 # from testing find install here https://github.com/timescale/python-vector/
 
-TEST_SERVICE_URL = os.environ.get("TEST_TIMESCALE_SERVICE_URL", "postgres://tsdbadmin:<password>@<id>.tsdb.cloud.timescale.com:<port>/tsdb?sslmode=require");
+TEST_SERVICE_URL = os.environ.get(
+    "TEST_TIMESCALE_SERVICE_URL", "postgres://tsdbadmin:<password>@<id>.tsdb.cloud.timescale.com:<port>/tsdb?sslmode=require")
 TEST_TABLE_NAME = "lorem_ipsum"
 
 try:
@@ -48,7 +49,7 @@ def db(conn: Any) -> Generator:
         conn.commit()
     yield
     with conn.cursor() as c:
-        #c.execute(f"DROP TABLE IF EXISTS {TEST_TABLE_NAME}")
+        # c.execute(f"DROP TABLE IF EXISTS {TEST_TABLE_NAME}")
         conn.commit()
 
 
@@ -75,7 +76,8 @@ def node_embeddings() -> List[NodeWithEmbedding]:
             node=TextNode(
                 text="lorem ipsum",
                 id_="aaa",
-                relationships={NodeRelationship.SOURCE: RelatedNodeInfo(node_id="aaa")},
+                relationships={
+                    NodeRelationship.SOURCE: RelatedNodeInfo(node_id="aaa")},
             ),
         ),
         NodeWithEmbedding(
@@ -83,7 +85,8 @@ def node_embeddings() -> List[NodeWithEmbedding]:
             node=TextNode(
                 text="dolor sit amet",
                 id_="bbb",
-                relationships={NodeRelationship.SOURCE: RelatedNodeInfo(node_id="bbb")},
+                relationships={
+                    NodeRelationship.SOURCE: RelatedNodeInfo(node_id="bbb")},
                 extra_info={"test_key": "test_value"},
             ),
         ),
@@ -178,3 +181,29 @@ async def test_add_to_db_query_and_delete(
     assert res.nodes
     assert len(res.nodes) == 1
     assert res.nodes[0].node_id == "aaa"
+
+
+@pytest.mark.skipif(timescale_not_available, reason="timescale vector store is not available")
+def test_add_to_db_query_and_delete(
+    tvs: TimescaleVectorStore, node_embeddings: List[NodeWithEmbedding]
+) -> None:
+    tvs.add(node_embeddings)
+    assert isinstance(tvs, TimescaleVectorStore)
+
+    q = VectorStoreQuery(query_embedding=[0.1] * 1536, similarity_top_k=1)
+    res = tvs.query(q)
+    assert res.nodes
+    assert len(res.nodes) == 1
+    assert res.nodes[0].node_id == "bbb"
+
+    tvs.create_index()
+    tvs.drop_index()
+
+    tvs.create_index("tsv", max_alpha=1.0, num_neighbors=50)
+    tvs.drop_index()
+
+    tvs.create_index("ivfflat", num_lists=20, num_records=1000)
+    tvs.drop_index()
+
+    tvs.create_index("hnsw", m=16, ef_construction=64)
+    tvs.drop_index()
