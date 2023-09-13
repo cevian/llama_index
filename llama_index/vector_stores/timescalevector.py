@@ -38,7 +38,6 @@ class TimescaleVectorStore(VectorStore):
         self.table_name: str = table_name.lower()
         self.num_dimensions = num_dimensions
         self.time_partition_interval = time_partition_interval
-        self.uuid_time_filter = None
 
         self._create_clients()
         self._create_tables()
@@ -66,10 +65,16 @@ class TimescaleVectorStore(VectorStore):
     def _create_clients(self):
         from timescale_vector import client
 
+        # in the normal case doen't restrict the id type to even uuid. Allow arbitrary text
+        id_type = "TEXT"
+        if self.time_partition_interval is not None:
+            # for time partitioned tables, the id type must be UUID v1
+            id_type = "UUID"
+
         self._sync_client = client.Sync(self.service_url, self.table_name, self.num_dimensions,
-                                        id_type="UUID", time_partition_interval=self.time_partition_interval)
+                                        id_type=id_type, time_partition_interval=self.time_partition_interval)
         self._async_client = client.Async(self.service_url, self.table_name, self.num_dimensions,
-                                          id_type="UUID", time_partition_interval=self.time_partition_interval)
+                                          id_type=id_type, time_partition_interval=self.time_partition_interval)
 
     def _create_tables(self) -> None:
         self._sync_client.create_tables()
@@ -80,7 +85,18 @@ class TimescaleVectorStore(VectorStore):
             remove_text=True,
             flat_metadata=self.flat_metadata,
         )
-        return [str(uuid.uuid1()), metadata, node.node.get_content(metadata_mode=MetadataMode.NONE), node.embedding]
+        # reuse the node id in the common  case
+        id = node.node.node_id
+        if self.time_partition_interval is not None:
+            # for time partitioned tables, the id must be a UUID v1, so generate one if it's not already set
+            try:
+                # Attempt to parse the UUID from the string
+                parsed_uuid = uuid.UUID(id)
+                if parsed_uuid.version != 1:
+                    id = str(uuid.uuid1())
+            except ValueError as e:
+                id = str(uuid.uuid1())
+        return [id, metadata, node.node.get_content(metadata_mode=MetadataMode.NONE), node.embedding]
 
     def add(self, embedding_results: List[NodeWithEmbedding]) -> List[str]:
         rows_to_insert = [self._node_to_row(node)
@@ -137,9 +153,10 @@ class TimescaleVectorStore(VectorStore):
         )
 
     def date_to_range_filter(self, **kwargs) -> Any:
-        start_date = kwargs.get("start_date")
-        end_date = kwargs.get("end_date")
-        time_delta = kwargs.get("time_delta")
+        constructor_args = {key: kwargs[key] for key in [
+            "start_date", "end_date", "time_delta", "start_inclusive", "end_inclusive"] if key in kwargs}
+        if not constructor_args or len(constructor_args) == 0:
+            return None
 
         try:
             from timescale_vector import client
@@ -148,38 +165,20 @@ class TimescaleVectorStore(VectorStore):
                 "Could not import timescale_vector python package. "
                 "Please install it with `pip install timescale-vector`."
             )
-
-        if not start_date and not end_date:
-            return
-
-        if start_date and not isinstance(start_date, datetime):
-            raise ValueError("start_date should be a datetime object.")
-
-        if end_date and not isinstance(end_date, datetime):
-            raise ValueError("end_date should be a datetime object.")
-
-        if time_delta and not isinstance(time_delta, timedelta):
-            raise ValueError("time_delta should be a timedelta object.")
-
-        if start_date and time_delta and not end_date:
-            end_date = start_date + time_delta
-
-        if end_date and time_delta and not start_date:
-            start_date = end_date - time_delta
-
-        include_start_time = True
-        include_end_time = True
-        return client.UUIDTimeRange(start_date, end_date, include_start_time, include_end_time)
+        return client.UUIDTimeRange(**constructor_args)
 
     def _query_with_score(
         self,
         embedding: Optional[List[float]],
         limit: int = 10,
         metadata_filters: Optional[MetadataFilters] = None,
+        **kwargs: Any,
     ) -> VectorStoreQueryResult:
         filter = self._filter_to_dict(metadata_filters)
         res = self._sync_client.search(
-            embedding, limit, filter, uuid_time_filter=self.uuid_time_filter)
+            embedding, limit, filter, uuid_time_filter=self.date_to_range_filter(
+                **kwargs)
+        )
         return self._db_rows_to_query_result(res)
 
     async def _aquery_with_score(
@@ -187,9 +186,11 @@ class TimescaleVectorStore(VectorStore):
         embedding: Optional[List[float]],
         limit: int = 10,
         metadata_filters: Optional[MetadataFilters] = None,
+        **kwargs: Any,
     ) -> VectorStoreQueryResult:
         filter = self._filter_to_dict(metadata_filters)
-        res = await self._async_client.search(embedding, limit, filter, uuid_time_filter=self.uuid_time_filter)
+        res = await self._async_client.search(embedding, limit, filter, uuid_time_filter=self.date_to_range_filter(
+            **kwargs))
         return self._db_rows_to_query_result(res)
 
     def query(self, query: VectorStoreQuery, **kwargs: Any) -> VectorStoreQueryResult:
@@ -242,7 +243,3 @@ class TimescaleVectorStore(VectorStore):
 
     def drop_index(self):
         self._sync_client.drop_embedding_index()
-
-    # TODO
-    def set_query_args(self, **kwargs):
-        self.uuid_time_filter = self.date_to_range_filter(**kwargs)

@@ -3,6 +3,7 @@ from typing import List, Any, Dict, Union, Generator
 import pytest
 import asyncio
 import os
+import uuid
 
 from llama_index.schema import NodeRelationship, RelatedNodeInfo, TextNode
 from llama_index.vector_stores import TimescaleVectorStore
@@ -13,7 +14,7 @@ from llama_index.vector_stores.types import (
     ExactMatchFilter,
 )
 
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 # from testing find install here https://github.com/timescale/python-vector/
 
@@ -167,6 +168,7 @@ async def test_add_to_db_and_query_with_metadata_filters(
     assert res.nodes
     assert len(res.nodes) == 1
     assert res.nodes[0].node_id == "bbb"
+    assert res.ids[0] == "bbb"
 
 
 @pytest.mark.skipif(timescale_not_available, reason="timescale vector store is not available")
@@ -230,21 +232,71 @@ def test_add_to_db_query_and_delete(
 @pytest.mark.skipif(timescale_not_available, reason="timescale vector store is not available")
 @pytest.mark.asyncio
 @pytest.mark.parametrize("use_async", [(True), (False)])
-async def test_time_partitioning(
+async def test_time_partitioning_default_uuid(
     tvs_tp: TimescaleVectorStore, node_embeddings: List[NodeWithEmbedding], use_async: bool
 ) -> None:
     if use_async:
         await tvs_tp.async_add(node_embeddings)
     else:
         tvs_tp.add(node_embeddings)
-    assert isinstance(tvs, TimescaleVectorStore)
+    assert isinstance(tvs_tp, TimescaleVectorStore)
 
     q = VectorStoreQuery(query_embedding=[0.1] * 1536, similarity_top_k=1)
 
     if use_async:
-        res = await tvs.aquery(q)
+        res = await tvs_tp.aquery(q)
     else:
-        res = tvs.query(q)
+        res = tvs_tp.query(q)
     assert res.nodes
     assert len(res.nodes) == 1
     assert res.nodes[0].node_id == "bbb"
+    assert res.ids[0] != "bbb"
+
+
+@pytest.mark.skipif(timescale_not_available, reason="timescale vector store is not available")
+@pytest.mark.asyncio
+@pytest.mark.parametrize("use_async", [(True), (False)])
+async def test_time_partitioning_explicit_uuid(
+    tvs_tp: TimescaleVectorStore, node_embeddings: List[NodeWithEmbedding], use_async: bool
+) -> None:
+    t0 = datetime(2018, 1, 1, 0, 0, 0)
+    t = t0
+    for node in node_embeddings:
+        node.node.id_ = str(client.uuid_from_time(t))
+        t = t + timedelta(days=1)
+    if use_async:
+        await tvs_tp.async_add(node_embeddings)
+    else:
+        tvs_tp.add(node_embeddings)
+    assert isinstance(tvs_tp, TimescaleVectorStore)
+
+    q = VectorStoreQuery(query_embedding=[0.1] * 1536, similarity_top_k=1)
+
+    if use_async:
+        res = await tvs_tp.aquery(q)
+    else:
+        res = tvs_tp.query(q)
+    assert res.nodes
+    assert len(res.nodes) == 1
+    assert res.nodes[0].node_id == node_embeddings[1].node.node_id
+    assert res.ids[0] != node_embeddings[1].node.node_id
+
+    # make sure time filter works. This query should return only the first node
+    q = VectorStoreQuery(query_embedding=[0.1] * 1536, similarity_top_k=4)
+    if use_async:
+        res = await tvs_tp.aquery(q, end_date=t0+timedelta(minutes=1))
+    else:
+        res = tvs_tp.query(q, end_date=t0+timedelta(minutes=1))
+
+    assert res.nodes
+    assert len(res.nodes) == 1
+
+    # here the filter should return both nodes
+    q = VectorStoreQuery(query_embedding=[0.1] * 1536, similarity_top_k=4)
+    if use_async:
+        res = await tvs_tp.aquery(q, end_date=t0+timedelta(days=3))
+    else:
+        res = tvs_tp.query(q, end_date=t0+timedelta(days=3))
+
+    assert res.nodes
+    assert len(res.nodes) == 2
