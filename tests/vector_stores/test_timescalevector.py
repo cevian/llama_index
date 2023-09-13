@@ -13,6 +13,8 @@ from llama_index.vector_stores.types import (
     ExactMatchFilter,
 )
 
+from datetime import timedelta
+
 # from testing find install here https://github.com/timescale/python-vector/
 
 TEST_SERVICE_URL = os.environ.get(
@@ -58,6 +60,22 @@ def tvs(db: None) -> Any:
     tvs = TimescaleVectorStore.from_params(
         service_url=TEST_SERVICE_URL,
         table_name=TEST_TABLE_NAME,
+    )
+
+    yield tvs
+
+    try:
+        asyncio.get_event_loop().run_until_complete(tvs.close())
+    except RuntimeError:
+        asyncio.run(tvs.close())
+
+
+@pytest.fixture
+def tvs_tp(db: None) -> Any:
+    tvs = TimescaleVectorStore.from_params(
+        service_url=TEST_SERVICE_URL,
+        table_name=TEST_TABLE_NAME,
+        time_partition_interval=timedelta(hours=1),
     )
 
     yield tvs
@@ -207,3 +225,26 @@ def test_add_to_db_query_and_delete(
 
     tvs.create_index("hnsw", m=16, ef_construction=64)
     tvs.drop_index()
+
+
+@pytest.mark.skipif(timescale_not_available, reason="timescale vector store is not available")
+@pytest.mark.asyncio
+@pytest.mark.parametrize("use_async", [(True), (False)])
+async def test_time_partitioning(
+    tvs_tp: TimescaleVectorStore, node_embeddings: List[NodeWithEmbedding], use_async: bool
+) -> None:
+    if use_async:
+        await tvs_tp.async_add(node_embeddings)
+    else:
+        tvs_tp.add(node_embeddings)
+    assert isinstance(tvs, TimescaleVectorStore)
+
+    q = VectorStoreQuery(query_embedding=[0.1] * 1536, similarity_top_k=1)
+
+    if use_async:
+        res = await tvs.aquery(q)
+    else:
+        res = tvs.query(q)
+    assert res.nodes
+    assert len(res.nodes) == 1
+    assert res.nodes[0].node_id == "bbb"

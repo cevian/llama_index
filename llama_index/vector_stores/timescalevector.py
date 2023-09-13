@@ -52,13 +52,15 @@ class TimescaleVectorStore(VectorStore):
         cls,
         service_url: str,
         table_name: str,
-        num_dimensions: int = DEFAULT_EMBEDDING_DIM
+        num_dimensions: int = DEFAULT_EMBEDDING_DIM,
+        time_partition_interval: Optional[timedelta] = None,
     ) -> "TimescaleVectorStore":
 
         return cls(
             service_url=service_url,
             table_name=table_name,
             num_dimensions=num_dimensions,
+            time_partition_interval=time_partition_interval,
         )
 
     def _create_clients(self):
