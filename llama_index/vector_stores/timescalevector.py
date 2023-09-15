@@ -1,10 +1,9 @@
 from typing import List, Any, Type, Optional, Dict
 from collections import namedtuple
 
-from llama_index.schema import MetadataMode, TextNode
+from llama_index.schema import BaseNode, MetadataMode, TextNode
 from llama_index.vector_stores.types import (
     VectorStore,
-    NodeWithEmbedding,
     VectorStoreQuery,
     VectorStoreQueryResult,
     MetadataFilters,
@@ -79,14 +78,14 @@ class TimescaleVectorStore(VectorStore):
     def _create_tables(self) -> None:
         self._sync_client.create_tables()
 
-    def _node_to_row(self, node: NodeWithEmbedding) -> Any:
+    def _node_to_row(self, node: BaseNode) -> Any:
         metadata = node_to_metadata_dict(
-            node.node,
+            node,
             remove_text=True,
             flat_metadata=self.flat_metadata,
         )
         # reuse the node id in the common  case
-        id = node.node.node_id
+        id = node.node_id
         if self.time_partition_interval is not None:
             # for time partitioned tables, the id must be a UUID v1, so generate one if it's not already set
             try:
@@ -96,19 +95,19 @@ class TimescaleVectorStore(VectorStore):
                     id = str(uuid.uuid1())
             except ValueError as e:
                 id = str(uuid.uuid1())
-        return [id, metadata, node.node.get_content(metadata_mode=MetadataMode.NONE), node.embedding]
+        return [id, metadata, node.get_content(metadata_mode=MetadataMode.NONE), node.embedding]
 
-    def add(self, embedding_results: List[NodeWithEmbedding]) -> List[str]:
+    def add(self, embedding_results: List[BaseNode]) -> List[str]:
         rows_to_insert = [self._node_to_row(node)
                           for node in embedding_results]
         ids = [result[0] for result in rows_to_insert]
         self._sync_client.upsert(rows_to_insert)
         return ids
 
-    async def async_add(self, embedding_results: List[NodeWithEmbedding]) -> List[str]:
+    async def async_add(self, embedding_results: List[BaseNode]) -> List[str]:
         rows_to_insert = [self._node_to_row(node)
                           for node in embedding_results]
-        ids = [result.id for result in embedding_results]
+        ids = [result.node_id for result in embedding_results]
         await self._async_client.upsert(rows_to_insert)
         return ids
 

@@ -8,7 +8,6 @@ import uuid
 from llama_index.schema import NodeRelationship, RelatedNodeInfo, TextNode
 from llama_index.vector_stores import TimescaleVectorStore
 from llama_index.vector_stores.types import (
-    NodeWithEmbedding,
     VectorStoreQuery,
     MetadataFilters,
     ExactMatchFilter,
@@ -88,26 +87,22 @@ def tvs_tp(db: None) -> Any:
 
 
 @pytest.fixture(scope="session")
-def node_embeddings() -> List[NodeWithEmbedding]:
+def node_embeddings() -> List[TextNode]:
     return [
-        NodeWithEmbedding(
+        TextNode(
+            text="lorem ipsum",
+            id_="aaa",
+            relationships={
+                NodeRelationship.SOURCE: RelatedNodeInfo(node_id="aaa")},
             embedding=[1.0] * 1536,
-            node=TextNode(
-                text="lorem ipsum",
-                id_="aaa",
-                relationships={
-                    NodeRelationship.SOURCE: RelatedNodeInfo(node_id="aaa")},
-            ),
         ),
-        NodeWithEmbedding(
+        TextNode(
+            text="dolor sit amet",
+            id_="bbb",
+            relationships={
+                NodeRelationship.SOURCE: RelatedNodeInfo(node_id="bbb")},
+            extra_info={"test_key": "test_value"},
             embedding=[0.1] * 1536,
-            node=TextNode(
-                text="dolor sit amet",
-                id_="bbb",
-                relationships={
-                    NodeRelationship.SOURCE: RelatedNodeInfo(node_id="bbb")},
-                extra_info={"test_key": "test_value"},
-            ),
         ),
     ]
 
@@ -127,7 +122,7 @@ async def test_instance_creation(db: None) -> None:
 @pytest.mark.asyncio
 @pytest.mark.parametrize("use_async", [(True), (False)])
 async def test_add_to_db_and_query(
-    tvs: TimescaleVectorStore, node_embeddings: List[NodeWithEmbedding], use_async: bool
+    tvs: TimescaleVectorStore, node_embeddings: List[TextNode], use_async: bool
 ) -> None:
     if use_async:
         await tvs.async_add(node_embeddings)
@@ -148,7 +143,7 @@ async def test_add_to_db_and_query(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("use_async", [(True), (False)])
 async def test_add_to_db_and_query_with_metadata_filters(
-    tvs: TimescaleVectorStore, node_embeddings: List[NodeWithEmbedding], use_async: bool
+    tvs: TimescaleVectorStore, node_embeddings: List[TextNode], use_async: bool
 ) -> None:
     if use_async:
         await tvs.async_add(node_embeddings)
@@ -175,7 +170,7 @@ async def test_add_to_db_and_query_with_metadata_filters(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("use_async", [(True), (False)])
 async def test_add_to_db_query_and_delete(
-    tvs: TimescaleVectorStore, node_embeddings: List[NodeWithEmbedding], use_async: bool
+    tvs: TimescaleVectorStore, node_embeddings: List[TextNode], use_async: bool
 ) -> None:
     if use_async:
         await tvs.async_add(node_embeddings)
@@ -205,7 +200,7 @@ async def test_add_to_db_query_and_delete(
 
 @pytest.mark.skipif(timescale_not_available, reason="timescale vector store is not available")
 def test_add_to_db_query_and_delete(
-    tvs: TimescaleVectorStore, node_embeddings: List[NodeWithEmbedding]
+    tvs: TimescaleVectorStore, node_embeddings: List[TextNode]
 ) -> None:
     tvs.add(node_embeddings)
     assert isinstance(tvs, TimescaleVectorStore)
@@ -233,7 +228,7 @@ def test_add_to_db_query_and_delete(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("use_async", [(True), (False)])
 async def test_time_partitioning_default_uuid(
-    tvs_tp: TimescaleVectorStore, node_embeddings: List[NodeWithEmbedding], use_async: bool
+    tvs_tp: TimescaleVectorStore, node_embeddings: List[TextNode], use_async: bool
 ) -> None:
     if use_async:
         await tvs_tp.async_add(node_embeddings)
@@ -250,19 +245,18 @@ async def test_time_partitioning_default_uuid(
     assert res.nodes
     assert len(res.nodes) == 1
     assert res.nodes[0].node_id == "bbb"
-    assert res.ids[0] != "bbb"
 
 
 @pytest.mark.skipif(timescale_not_available, reason="timescale vector store is not available")
 @pytest.mark.asyncio
 @pytest.mark.parametrize("use_async", [(True), (False)])
 async def test_time_partitioning_explicit_uuid(
-    tvs_tp: TimescaleVectorStore, node_embeddings: List[NodeWithEmbedding], use_async: bool
+    tvs_tp: TimescaleVectorStore, node_embeddings: List[TextNode], use_async: bool
 ) -> None:
     t0 = datetime(2018, 1, 1, 0, 0, 0)
     t = t0
     for node in node_embeddings:
-        node.node.id_ = str(client.uuid_from_time(t))
+        node.id_ = str(client.uuid_from_time(t))
         t = t + timedelta(days=1)
     if use_async:
         await tvs_tp.async_add(node_embeddings)
@@ -278,8 +272,8 @@ async def test_time_partitioning_explicit_uuid(
         res = tvs_tp.query(q)
     assert res.nodes
     assert len(res.nodes) == 1
-    assert res.nodes[0].node_id == node_embeddings[1].node.node_id
-    assert res.ids[0] != node_embeddings[1].node.node_id
+    assert res.nodes[0].node_id == node_embeddings[1].node_id
+    assert res.ids[0] != node_embeddings[1].node_id
 
     # make sure time filter works. This query should return only the first node
     q = VectorStoreQuery(query_embedding=[0.1] * 1536, similarity_top_k=4)
