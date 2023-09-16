@@ -214,7 +214,7 @@ class TimescaleVectorStore(VectorStore):
         PGVECTOR_IVFFLAT = 2
         PGVECTOR_HNSW = 3
 
-    DEFAULT_INDEX_TYPE = IndexType.PGVECTOR_IVFFLAT
+    DEFAULT_INDEX_TYPE = IndexType.TIMESCALE_VECTOR
 
     def create_index(
             self,
