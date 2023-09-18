@@ -1,9 +1,10 @@
 import os
-import requests
-from pydantic import Field, PrivateAttr
-from tqdm import tqdm
 from typing import Any, Callable, Dict, Optional, Sequence
 
+import requests
+from tqdm import tqdm
+
+from llama_index.bridge.pydantic import Field, PrivateAttr
 from llama_index.callbacks import CallbackManager
 from llama_index.constants import DEFAULT_CONTEXT_WINDOW, DEFAULT_NUM_OUTPUTS
 from llama_index.llms.base import (
@@ -24,15 +25,21 @@ from llama_index.llms.generic_utils import (
 from llama_index.llms.generic_utils import stream_completion_response_to_chat_response
 from llama_index.utils import get_cache_dir
 
-
-DEFAULT_LLAMA_CPP_MODEL = (
+DEFAULT_LLAMA_CPP_GGML_MODEL = (
     "https://huggingface.co/TheBloke/Llama-2-13B-chat-GGML/resolve"
     "/main/llama-2-13b-chat.ggmlv3.q4_0.bin"
 )
 
+DEFAULT_LLAMA_CPP_GGUF_MODEL = (
+    "https://huggingface.co/TheBloke/Llama-2-13B-chat-GGUF/resolve"
+    "/main/llama-2-13b-chat.Q4_0.gguf"
+)
+
 
 class LlamaCPP(CustomLLM):
-    model_url: str = Field(description="The URL llama-cpp model to download and use.")
+    model_url: Optional[str] = Field(
+        description="The URL llama-cpp model to download and use."
+    )
     model_path: Optional[str] = Field(
         description="The path to the llama-cpp model to use."
     )
@@ -59,7 +66,7 @@ class LlamaCPP(CustomLLM):
 
     def __init__(
         self,
-        model_url: str = DEFAULT_LLAMA_CPP_MODEL,
+        model_url: Optional[str] = None,
         model_path: Optional[str] = None,
         temperature: float = 0.1,
         max_new_tokens: int = DEFAULT_NUM_OUTPUTS,
@@ -95,6 +102,7 @@ class LlamaCPP(CustomLLM):
                 self._model = Llama(model_path=model_path, **model_kwargs)
         else:
             cache_dir = get_cache_dir()
+            model_url = model_url or self._get_model_path_for_version()
             model_name = os.path.basename(model_url)
             model_path = os.path.join(cache_dir, "models", model_name)
             if not os.path.exists(model_path):
@@ -127,6 +135,11 @@ class LlamaCPP(CustomLLM):
             verbose=verbose,
         )
 
+    @classmethod
+    def class_name(cls) -> str:
+        """Get class name."""
+        return "LlamaCPP_llm"
+
     @property
     def metadata(self) -> LLMMetadata:
         """LLM metadata."""
@@ -135,6 +148,19 @@ class LlamaCPP(CustomLLM):
             num_output=self.max_new_tokens,
             model_name=self.model_path,
         )
+
+    def _get_model_path_for_version(self) -> str:
+        """Get model path for the current llama-cpp version."""
+        import pkg_resources
+
+        version = pkg_resources.get_distribution("llama-cpp-python").version
+        major, minor, patch = version.split(".")
+
+        # NOTE: llama-cpp-python<=0.1.78 supports GGML, newer support GGUF
+        if int(major) <= 0 and int(minor) <= 1 and int(patch) <= 78:
+            return DEFAULT_LLAMA_CPP_GGML_MODEL
+        else:
+            return DEFAULT_LLAMA_CPP_GGUF_MODEL
 
     def _download_url(self, model_url: str, model_path: str) -> None:
         completed = False
@@ -168,7 +194,7 @@ class LlamaCPP(CustomLLM):
     @llm_chat_callback()
     def chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatResponse:
         prompt = self.messages_to_prompt(messages)
-        completion_response = self.complete(prompt, **kwargs)
+        completion_response = self.complete(prompt, formatted=True, **kwargs)
         return completion_response_to_chat_response(completion_response)
 
     @llm_chat_callback()
@@ -176,13 +202,16 @@ class LlamaCPP(CustomLLM):
         self, messages: Sequence[ChatMessage], **kwargs: Any
     ) -> ChatResponseGen:
         prompt = self.messages_to_prompt(messages)
-        completion_response = self.stream_complete(prompt, **kwargs)
+        completion_response = self.stream_complete(prompt, formatted=True, **kwargs)
         return stream_completion_response_to_chat_response(completion_response)
 
     @llm_completion_callback()
     def complete(self, prompt: str, **kwargs: Any) -> CompletionResponse:
         self.generate_kwargs.update({"stream": False})
-        prompt = self.completion_to_prompt(prompt)
+
+        is_formatted = kwargs.pop("formatted", False)
+        if not is_formatted:
+            prompt = self.completion_to_prompt(prompt)
 
         response = self._model(prompt=prompt, **self.generate_kwargs)
 
@@ -191,7 +220,10 @@ class LlamaCPP(CustomLLM):
     @llm_completion_callback()
     def stream_complete(self, prompt: str, **kwargs: Any) -> CompletionResponseGen:
         self.generate_kwargs.update({"stream": True})
-        prompt = self.completion_to_prompt(prompt)
+
+        is_formatted = kwargs.pop("formatted", False)
+        if not is_formatted:
+            prompt = self.completion_to_prompt(prompt)
 
         response_iter = self._model(prompt=prompt, **self.generate_kwargs)
 

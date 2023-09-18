@@ -1,5 +1,6 @@
-from pydantic import Field, PrivateAttr
 from typing import Any, Callable, Dict, Optional, Sequence
+
+from llama_index.bridge.pydantic import Field, PrivateAttr
 
 from llama_index.callbacks import CallbackManager
 from llama_index.constants import DEFAULT_CONTEXT_WINDOW, DEFAULT_NUM_OUTPUTS
@@ -57,6 +58,11 @@ class Replicate(CustomLLM):
             prompt_key=prompt_key,
             callback_manager=callback_manager,
         )
+
+    @classmethod
+    def class_name(cls) -> str:
+        """Get class name."""
+        return "Replicate_llm"
 
     @property
     def metadata(self) -> LLMMetadata:

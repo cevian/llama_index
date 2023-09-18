@@ -3,14 +3,223 @@
 ## Unreleased
 
 ### New Features
+- Added support for `Ollama` LLMs (#7635)
+- Added `HWPReader` (#7672)
+- Simplified portkey LLM interface (#7669)
+- Added async operation support to `ElasticsearchStore` vector store (#7613)
+- Added support for `LiteLLM` (#7600)
+
+### Bug Fixes / Nits
+- Avoid `NotImplementedError` for async langchain embeddings (#7668)
+- Imrpoved reliability of LLM selectors (#7678)
+- Fixed `query_wrapper_prompt` and `system_prompt` for output parsers and completion models (#7678)
+- Fixed node attribute inheritance in citation query engine (#7675)
+
+## [0.8.27] - 2023-09-14
+
+### New Features
+- add low-level tutorial section (#7673)
+
+### Bug Fixes / Nits
+- default delta should be a dict (#7665)
+- better query wrapper logic on LLMPredictor (#7667)
+
+## [0.8.26] - 2023-09-12
+
+### New Features
+- add non-linear embedding adapter (#7658)
+- Add "finetune + RAG" evaluation to knowledge fine-tuning notebook (#7643)
+
+### Bug Fixes / Nits
+- Fixed chunk-overlap for sentence splitter (#7590)
+
+## [0.8.25] - 2023-09-12
+
+### New Features
+- Added `AGENT_STEP` callback event type (#7652)
+
+### Bug Fixes / Nits
+- Allowed `simple` mode to work with `as_chat_engine()` (#7637)
+- Fixed index error in azure streaming (#7646)
+- Removed `pdb` from llama-cpp (#7651)
+
+## [0.8.24] - 2023-09-11
+
+## New Features
+- guide: fine-tuning to memorize knowledge (#7626)
+- added ability to customize prompt template for eval modules (#7626)
+
+### Bug Fixes
+- Properly detect `llama-cpp-python` version for loading the default GGML or GGUF `llama2-chat-13b` model (#7616)
+- Pass in `summary_template` properly with `RetrieverQueryEngine.from_args()` (#7621)
+- Fix span types in wandb callback (#7631)
+
+## [0.8.23] - 2023-09-09
+
+### Bug Fixes
+- Make sure context and system prompt is included in prompt for first chat for llama2 (#7597)
+- Avoid negative chunk size error in refine process (#7607)
+- Fix relationships for small documents in hierarchical node parser (#7611)
+- Update Anyscale Endpoints integration with full streaming and async support (#7602)
+- Better support of passing credentials as LLM constructor args in `OpenAI`, `AzureOpenAI`, and `Anyscale` (#7602)
+
+### Breaking Changes
+- Update milvus vector store to support filters and dynamic schemas (#7286)
+  - See the [updated notebook](https://gpt-index.readthedocs.io/en/stable/examples/vector_stores/MilvusIndexDemo.html) for usage
+- Added NLTK to core dependencies to support the default sentence splitter (#7606)
+
+## [0.8.22] - 2023-09-07
+
+### New Features
+- Added support for ElasticSearch Vector Store (#7543)
+
+### Bug Fixes / Nits
+- Fixed small `_index` bug in `ElasticSearchReader` (#7570)
+- Fixed bug with prompt helper settings in global service contexts (#7576)
+- Remove newlines from openai embeddings again (#7588)
+- Fixed small bug with setting `query_wrapper_prompt` in the service context (#7585)
+
+### Breaking/Deprecated API Changes
+- Clean up vector store interface to use `BaseNode` instead of `NodeWithEmbedding`
+  - For majority of users, this is a no-op change
+  - For users directly operating with the `VectorStore` abstraction and manually constructing `NodeWithEmbedding` objects, this is a minor breaking change. Use `TextNode` with `embedding` set directly, instead of `NodeWithEmbedding`.
+
+## [0.8.21] - 2023-09-06
+
+### New Features
+- add embedding adapter fine-tuning engine + guide (#7565)
+- Added support for Azure Cognitive Search vector store (#7469)
+- Support delete in supabase (#6951)
+- Added support for Espilla vector store (#7539)
+- Added support for AnyScale LLM (#7497)
+
+### Bug Fixes / Nits
+- Default to user-configurable top-k in `VectorIndexAutoRetriever` (#7556)
+- Catch validation errors for structured responses (#7523)
+- Fix streaming refine template (#7561)
+
+## [0.8.20] - 2023-09-04
+
+### New Features
+- Added Portkey LLM integration (#7508)
+- Support postgres/pgvector hybrid search (#7501)
+- upgrade recursive retriever node reference notebook (#7537)
+
+## [0.8.19] - 2023-09-03
+
+### New Features
+- replace list index with summary index  (#7478)
+- rename list index to summary index part 2 (#7531)
+
+## [0.8.18] - 2023-09-03
+
+### New Features
+- add agent finetuning guide (#7526)
+
+## [0.8.17] - 2023-09-02
+
+### New Features
+- Make (some) loaders serializable (#7498)
+- add node references to recursive retrieval (#7522)
+
+### Bug Fixes / Nits
+- Raise informative error when metadata is too large during splitting (#7513)
+- Allow langchain splitter in simple node parser (#7517)
+
+## [0.8.16] - 2023-09-01
+
+### Bug Fixes / Nits
+- fix link to Marvin notebook in docs (#7504)
+- Ensure metadata is not `None` in `SimpleWebPageReader` (#7499)
+- Fixed KGIndex visualization (#7493)
+- Improved empty response in KG Index (#7493)
+
+## [0.8.15] - 2023-08-31
+
+### New Features
+- Added support for `MarvinEntityExtractor` metadata extractor (#7438)
+- Added a url_metadata callback to SimpleWebPageReader (#7445)
+- Expanded callback logging events (#7472)
+
+### Bug Fixes / Nits
+- Only convert newlines to spaces for text 001 embedding models in OpenAI (#7484)
+- Fix `KnowledgeGraphRagRetriever` for non-nebula indexes (#7488)
+- Support defined embedding dimension in `PGVectorStore` (#7491)
+- Greatly improved similarity calculation speed for the base vector store (#7494)
+
+## [0.8.14] - 2023-08-30
+
+### New Features
+- feat: non-kg heterogeneous graph support in Graph RAG (#7459)
+- rag guide (#7480)
+
+### Bug Fixes / Nits
+- Improve openai fine-tuned model parsing (#7474)
+- doing some code de-duplication (#7468)
+- support both str and templates for query_wrapper_prompt in HF LLMs (#7473)
+
+## [0.8.13] - 2023-08-29
+
+### New Features
+- Add embedding finetuning (#7452)
+- Added support for RunGPT LLM (#7401)
+- Integration guide and notebook with DeepEval (#7425)
+- Added `VectorIndex` and `VectaraRetriever` as a managed index (#7440)
+- Added support for `to_tool_list` to detect and use async functions (#7282)
+
+## [0.8.12] - 2023-08-28
+
+### New Features
+
+- add openai finetuning class (#7442)
+- Service Context to/from dict (#7395)
+- add finetuning guide (#7429)
+
+### Smaller Features / Nits / Bug Fixes
+- Add example how to run FalkorDB docker (#7441)
+- Update root.md to use get_response_synthesizer expected type. (#7437) 
+- Bugfix MonsterAPI Pydantic version v2/v1 support. Doc Update (#7432)
+
+## [0.8.11.post3] - 2023-08-27
+
+### New Features
+- AutoMergingRetriever (#7420)
+
+## [0.8.10.post1] - 2023-08-25
+
+### New Features
+- Added support for `MonsterLLM` using MonsterAPI (#7343) 
+- Support comments fields in NebulaGraphStore and int type VID (#7402)
+- Added configurable endpoint for DynamoDB (#6777)
+- Add structured answer filtering for Refine response synthesizer (#7317)
+
+### Bug Fixes / Nits
+- Use `utf-8` for json file reader (#7390)
+- Fix entity extractor initialization (#7407)
+
+## [0.8.9] - 2023-08-24
+
+### New Features
 - Added support for FalkorDB/RedisGraph graph store (#7346)
 - Added directed sub-graph RAG (#7378)
+- Added support for `BM25Retriever` (#7342)
 
 ### Bug Fixes / Nits
 - Added `max_tokens` to `Xinference` LLM (#7372)
 - Support cache dir creation in multithreaded apps (#7365)
 - Ensure temperature is a float for openai (#7382)
 - Remove duplicate subjects in knowledge graph retriever (#7378)
+- Added support for both pydantic v1 and v2 to allow other apps to move forward (#7394)
+
+### Breaking/Deprecated API Changes
+- Refactor prompt template (#7319)
+  - Use `BasePromptTemplate` for generic typing
+  - Use `PromptTemplate`, `ChatPromptTemplate`, `SelectorPromptTemplate` as core implementations
+  - Use `LangchainPromptTemplate` for compatibility with Langchain prompt templates
+  - Fully replace specific prompt classes (e.g. `SummaryPrompt`) with generic `BasePromptTemplate` for typing in codebase.
+  - Keep `Prompt` as an alias for `PromptTemplate` for backwards compatibility.
+  - BREAKING CHANGE: remove support for `Prompt.from_langchain_prompt`, please use `template=LangchainPromptTemplate(lc_template)` instead.
+
 
 ## [0.8.8] - 2023-08-23
 

@@ -12,6 +12,24 @@ If you want to import the corresponding retrievers directly, please check out ou
 
 Check out our comprehensive guides on various retriever modules, many of which cover advanced concepts (auto-retrieval, routing, ensembling, and more).
 
+## External Retrievers
+```{toctree}
+---
+maxdepth: 1
+---
+/examples/retrievers/bm25_retriever.ipynb 
+```
+
+## Knowledge Graph Retrievers
+```{toctree}
+---
+maxdepth: 1
+---
+Custom Retriever (KG Index and Vector Store Index) </examples/index_structs/knowledge_graph/KnowledgeGraphIndex_vs_VectorStoreIndex_vs_CustomIndex_combined.ipynb>
+Knowledge Graph RAG Retriever </examples/query_engine/knowledge_graph_rag_query_engine.ipynb>
+```
+
+## Composed Retrievers
 ```{toctree}
 ---
 maxdepth: 1
@@ -21,5 +39,6 @@ Auto-Retrieval (with BagelDB) </examples/vector_stores/BagelAutoRetriever.ipynb>
 /examples/query_engine/pdf_tables/recursive_retriever.ipynb
 /examples/retrievers/router_retriever.ipynb
 /examples/retrievers/ensemble_retrieval.ipynb
-Custom Retriever (KG Index and Vector Store Index) </examples/index_structs/knowledge_graph/KnowledgeGraphIndex_vs_VectorStoreIndex_vs_CustomIndex_combined.ipynb>
+/examples/retrievers/auto_merging_retriever.ipynb
+/examples/retrievers/recursive_retriever_nodes.ipynb
 ```

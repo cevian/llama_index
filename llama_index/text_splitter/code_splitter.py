@@ -1,6 +1,7 @@
 """Code splitter."""
-from pydantic import Field
 from typing import Any, List, Optional
+
+from llama_index.bridge.pydantic import Field
 
 from llama_index.callbacks.base import CallbackManager
 from llama_index.callbacks.schema import CBEventType, EventPayload
@@ -52,6 +53,11 @@ class CodeSplitter(TextSplitter):
             max_chars=max_chars,
             callback_manager=callback_manager,
         )
+
+    @classmethod
+    def class_name(cls) -> str:
+        """Get class name."""
+        return "CodeSplitter"
 
     def _chunk_node(self, node: Any, text: str, last_end: int = 0) -> List[str]:
         new_chunks = []

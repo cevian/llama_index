@@ -1,6 +1,7 @@
 import os
-from pydantic import Field, PrivateAttr
 from typing import Any, Optional
+
+from llama_index.bridge.pydantic import Field, PrivateAttr
 
 from llama_index.callbacks import CallbackManager
 from llama_index.constants import DEFAULT_CONTEXT_WINDOW
@@ -66,6 +67,11 @@ class PredibaseLLM(CustomLLM):
             ) from e
         except ValueError as e:
             raise ValueError("Your API key is not correct. Please try again") from e
+
+    @classmethod
+    def class_name(cls) -> str:
+        """Get class name."""
+        return "PredibaseLLM"
 
     @property
     def metadata(self) -> LLMMetadata:

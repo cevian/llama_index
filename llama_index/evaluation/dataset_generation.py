@@ -7,11 +7,11 @@ from typing import List, Optional
 
 from llama_index import (
     Document,
-    ListIndex,
-    QuestionAnswerPrompt,
+    SummaryIndex,
     ServiceContext,
 )
 from llama_index.llms.openai import OpenAI
+from llama_index.prompts.base import BasePromptTemplate, PromptTemplate
 from llama_index.schema import BaseNode, NodeWithScore, MetadataMode
 from llama_index.indices.postprocessor.node import KeywordNodePostprocessor
 
@@ -42,6 +42,8 @@ class DatasetGenerator:
         num_questions_per_chunk: number of question to be \
         generated per chunk. Each document is chunked of size 512 words.
         text_question_template: Question generation template.
+        question_gen_query: Question generation query.
+
     """
 
     def __init__(
@@ -49,16 +51,17 @@ class DatasetGenerator:
         nodes: List[BaseNode],
         service_context: Optional[ServiceContext] = None,
         num_questions_per_chunk: int = 10,
-        text_question_template: Optional[QuestionAnswerPrompt] = None,
+        text_question_template: Optional[BasePromptTemplate] = None,
         question_gen_query: Optional[str] = None,
         required_keywords: Optional[List[str]] = None,
         exclude_keywords: Optional[List[str]] = None,
+        metadata_mode: MetadataMode = MetadataMode.NONE,
     ) -> None:
         """Init params."""
         if service_context is None:
             service_context = _get_default_service_context()
         self.service_context = service_context
-        self.text_question_template = text_question_template or QuestionAnswerPrompt(
+        self.text_question_template = text_question_template or PromptTemplate(
             DEFAULT_QUESTION_GENERATION_PROMPT
         )
         self.question_gen_query = (
@@ -70,6 +73,7 @@ class DatasetGenerator:
                                 context information provided."
         )
         self.nodes = nodes
+        self._metadata_mode = metadata_mode
 
     @classmethod
     def from_documents(
@@ -77,7 +81,7 @@ class DatasetGenerator:
         documents: List[Document],
         service_context: Optional[ServiceContext] = None,
         num_questions_per_chunk: int = 10,
-        text_question_template: Optional[QuestionAnswerPrompt] = None,
+        text_question_template: Optional[BasePromptTemplate] = None,
         question_gen_query: Optional[str] = None,
         required_keywords: Optional[List[str]] = None,
         exclude_keywords: Optional[List[str]] = None,
@@ -116,10 +120,10 @@ class DatasetGenerator:
         for node in nodes:
             if num is not None and len(questions) >= num:
                 break
-            index = ListIndex.from_documents(
+            index = SummaryIndex.from_documents(
                 [
                     Document(
-                        text=node.get_content(metadata_mode=MetadataMode.NONE),
+                        text=node.get_content(metadata_mode=self._metadata_mode),
                         metadata=node.metadata,
                     )
                 ]

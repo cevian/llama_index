@@ -1,7 +1,7 @@
 """Test utils."""
 from typing import List
 
-from pydantic import Field
+from llama_index.bridge.pydantic import Field
 
 from llama_index.tools.utils import create_schema_from_function
 

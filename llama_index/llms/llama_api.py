@@ -1,5 +1,6 @@
-from pydantic import Field, PrivateAttr
 from typing import Any, Dict, Optional, Sequence
+
+from llama_index.bridge.pydantic import Field, PrivateAttr
 
 from llama_index.callbacks import CallbackManager
 from llama_index.constants import DEFAULT_NUM_OUTPUTS
@@ -57,6 +58,11 @@ class LlamaAPI(CustomLLM):
             additional_kwargs=additional_kwargs or {},
             callback_manager=callback_manager,
         )
+
+    @classmethod
+    def class_name(cls) -> str:
+        """Get class name."""
+        return "llama_api_llm"
 
     @property
     def _model_kwargs(self) -> Dict[str, Any]:

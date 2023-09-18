@@ -32,6 +32,13 @@ maxdepth: 1
 
 ```
 
+## LiteLLM
+```{toctree}
+---
+maxdepth: 1
+---
+/examples/llm/litellm.ipynb
+```
 
 ## PaLM
 
@@ -98,4 +105,45 @@ maxdepth: 1
 maxdepth: 1
 ---
 /examples/llm/XinferenceLocalDeployment.ipynb
+```
+
+## MonsterAPI
+
+```{toctree}
+---
+maxdepth: 1
+---
+/examples/llm/monsterapi.ipynb
+```
+
+## RunGPT
+```{toctree}
+---
+maxdepth: 1
+---
+/examples/llm/rungpt.ipynb
+```
+
+## Portkey
+```{toctree}
+---
+maxdepth: 1
+---
+/examples/llm/portkey.ipynb
+```
+
+## AnyScale
+```{toctree}
+---
+maxdepth: 1
+---
+/examples/llm/anyscale.ipynb
+```
+
+## Ollama
+```{toctree}
+---
+maxdepth: 1
+---
+/examples/llm/ollama.ipynb
 ```

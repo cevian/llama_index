@@ -1,11 +1,12 @@
-from pydantic import Field, PrivateAttr
 from typing import Any, Dict, Optional, Sequence
 
+from llama_index.bridge.pydantic import Field, PrivateAttr
+
+from llama_index.callbacks import CallbackManager
 from llama_index.llms.anthropic_utils import (
     anthropic_modelname_to_contextsize,
     messages_to_anthropic_prompt,
 )
-from llama_index.callbacks import CallbackManager
 from llama_index.llms.base import (
     LLM,
     ChatMessage,
@@ -87,6 +88,11 @@ class Anthropic(LLM):
             model=model,
             callback_manager=callback_manager,
         )
+
+    @classmethod
+    def class_name(cls) -> str:
+        """Get class name."""
+        return "Anthropic_LLM"
 
     @property
     def metadata(self) -> LLMMetadata:

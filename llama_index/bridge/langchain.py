@@ -12,13 +12,13 @@ from langchain.cache import BaseCache, GPTCache
 # callback
 from langchain.callbacks.base import BaseCallbackHandler, BaseCallbackManager
 from langchain.chains.prompt_selector import ConditionalPromptSelector, is_chat_model
-from langchain.chat_models import ChatOpenAI
+from langchain.chat_models import ChatAnyscale, ChatOpenAI
 from langchain.chat_models.base import BaseChatModel
 from langchain.docstore.document import Document
 
 # embeddings
 from langchain.embeddings.base import Embeddings
-from langchain.embeddings import HuggingFaceEmbeddings, HuggingFaceBgeEmbeddings
+from langchain.embeddings import HuggingFaceBgeEmbeddings, HuggingFaceEmbeddings
 
 # LLMs
 from langchain.llms import AI21, BaseLLM, Cohere, FakeListLLM, OpenAI
@@ -53,7 +53,7 @@ from langchain.sql_database import SQLDatabase
 from langchain.input import get_color_mapping, print_text
 
 # input & output
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter, TextSplitter
 from langchain.tools import BaseTool, StructuredTool, Tool
 
 __all__ = [
@@ -64,6 +64,7 @@ __all__ = [
     "AI21",
     "Cohere",
     "BaseChatModel",
+    "ChatAnyscale",
     "ChatOpenAI",
     "BaseLanguageModel",
     "Embeddings",
@@ -110,4 +111,5 @@ __all__ = [
     "BaseCache",
     "Document",
     "RecursiveCharacterTextSplitter",
+    "TextSplitter",
 ]
